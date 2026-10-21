@@ -1,44 +1,48 @@
 import streamlit as st
-import json
-import time
-from datetime import datetime
-st.set_page_config(layout='wide', page_icon="💬")
+import plotly.express as px
+import pandas as pd
+st.set_page_config(layout='wide')
 
-# --- Funções auxiliares ---
-def carregar_mensagens():
-    with open('mensagens.json', 'r', encoding='utf-8') as f:
-        return json.load(f)
+df = pd.read_csv('Tabela_Clubes.csv')
+df['Gols_Feitos'] = df['GolsF/S'].apply(lambda x: int(x.split(':')[0]))
+df['Gols_Sofridos'] = df['GolsF/S'].apply(lambda x: int(x.split(':')[1]))
 
-def salvar_mensagens(mensagens):
-    with open('mensagens.json', 'w', encoding='utf-8') as f:
-        json.dump(mensagens, f, indent=4, ensure_ascii=False)
+# ============================== SIDEBAR
+lista_anos = df['Ano'].unique().tolist()
+filtro_anos = st.sidebar.multiselect('Ano', lista_anos, default=lista_anos)
 
-# --- Sidebar ---
-username = st.sidebar.text_input('Nome de usuário', key="username", value="guest")
-prompt = st.chat_input("Digite uma mensagem")
+# ============================== BODY
+df = df[df['Ano'].apply(lambda x: x in filtro_anos)]
 
-# --- Se o usuário enviou algo ---
-if prompt:
-    mensagens = carregar_mensagens()
-    t = datetime.now().strftime("%d/%m/%Y, %H:%M:%S")
-    mensagens.insert(0,{"time": f'({t})', "username": username, "mensagem": prompt})
-    salvar_mensagens(mensagens)
-    st.rerun()  # recarrega a página após enviar mensagem
+with st.container():
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        with st.container(border=True):
+            st.metric('Quantidade de Estrangeiros', df['Estrangeiros'].sum())
 
-# --- Título ---
-st.title("💬 Chat entre usuários")
+    with col2:
+        with st.container(border=True):
+            idade_media = df['Idade_Media'].apply(lambda x: float(x.replace(',', '.'))).mean()
+            st.metric('Idade média dos jogadores', f'{idade_media:.0f}')
 
-# --- Container para mensagens ---
-chat_container = st.empty()
 
-# --- Loop de atualização automática ---
-# OBS: isso roda por um tempo finito, não infinito, pra não travar o app
-for _ in range(1000):  # atualiza ~1000 vezes (você pode ajustar)
-    mensagens = carregar_mensagens()
+    with col3:
+        with st.container(border=True):
+            valor_medio = df['Valor_total'].mean()
+            st.metric('Valor médio dos times', f'R$ {df['Valor_total'].mean():,.0f}')
 
-    with chat_container.container(border=True, height=500):
-        for msg in mensagens:
-            st.write(f"**{msg['time']} - {msg['username']}**: {msg['mensagem']}")
 
-    time.sleep(5)  # intervalo de atualização (3 segundos)
-    st.rerun()  # força atualização
+with st.container():
+    col1, col2 = st.columns(2)
+    with col1:
+        with st.container(width='stretch'):
+            podio = df[df['Pos.'] <=5][['Ano', 'Pos.', 'Clubes']].sort_values(['Ano', 'Pos.'])
+            st.table(podio)
+
+    with col2:
+        with st.container(width='stretch'):
+            g1 = px.bar(df, x='Clubes', y='Gols_Feitos', title='Total de Gols Feitos')
+            st.plotly_chart(g1)
+
+            g2 = px.line(df, x='Ano', y='Valor_total', color='Clubes', markers='*', title='Valor Total dos times através dos anos')
+            st.plotly_chart(g2)
