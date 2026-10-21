@@ -1,103 +1,83 @@
-import streamlit as st
-import requests 
-import json
+import pandas as pd 
+import streamlit as st 
+import plotly.express as px
 
 st.set_page_config(layout="wide")
 
-with open("pokemon_index.json", "r",encoding="utf-8") as arquivo:
-    id_pokemon = json.load(arquivo)
+df = pd.read_csv("Ecommerce Geolocated.csv")
 
+#--------------------------------------SIDEBAR
 
-st.title("pokemon")
-nome_pokemon = st.selectbox("escolhao pokemon:", id_pokemon.values())
+st.sidebar.title("Amazon Ecommerce")
+st.sidebar.image("logo.png")
 
+# Filtro de paises 
+paises = df["Country"].unique().tolist()
+paises_escolhidos = st.sidebar.multiselect("Países", paises, paises)
+df = df[df["Country"].apply(lambda x: x in paises_escolhidos)]
 
-dados_pokemon = requests.get(f"https://pokeapi.co/api/v2/pokemon/{nome_pokemon}").json()
-st.title(dados_pokemon['name'].title()) 
+#---------------------------BOY
 
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.image(dados_pokemon['sprites']['front_default'], width=300)
-
-with col2:
-    st.audio(dados_pokemon['cries']['latest'])
-    st.subheader("tipos:")
-    for tipo in dados_pokemon['types']:
-        st.markdown(f" - {tipo['type']['name']}")
-
-with col3:
-    st.image(dados_pokemon['sprites']['front_shiny'],width=300)
-
-
-st.markdown("---")
-
-col1, col2, col3 = st.columns(3)
-
-#altura 
-altura = dados_pokemon['height']/10
-
-#peso
-peso = dados_pokemon['weight']/10
-
-imc = round(peso/ (altura* altura))
-
-with col1:
-    st.metric("Altura", altura)
-
-with col2:
-    st.metric("IMC", imc)
-
-with col3: 
-    st.metric("Peso", peso)
-
-ataques, status, locais, habilidades = st.tabs(["Ataques","Status","Locais","Habilidades"])
-
-with ataques:
-    st.subheader(f"quantidade de ataques(movimentos):{len(dados_pokemon['moves'])}")
-    for move in dados_pokemon['moves']:
-        st.markdown(f"-{move['move']['name']}")
-
-with status:
-    hp = dados_pokemon['stats'][0]['base_stat']
-    ataque = dados_pokemon['stats'][1]['base_stat']             
-    defesa = dados_pokemon['stats'][2]['base_stat']
-    ataque_especial = dados_pokemon['stats'][3]['base_stat']
-    defesa_especial = dados_pokemon['stats'][4]['base_stat']
-    velocidade =dados_pokemon['stats'][5]['base_stat']
-
-    col1, col2, col3, col4, col5, col6 = st.columns(6) 
+with st.container():
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.metric("HP", hp)
+        with st.container(border=True, height="stretch"):
+            st.metric("Total de vendas", f"${df["Purchase Price"].sum():.0f}")
 
     with col2:
-        st.metric("Ataque", defesa)
+        with st.container(border=True, height="stretch"):
+            st.metric("Total de países", len(paises_escolhidos))
 
     with col3:
-       st.metric("Ataque",defesa)
+        with st.container(border=True, height="stretch"):
+            st.metric("Totatl de Empresas", df["Country"].nunique())
 
     with col4:
-        st.metric("Ataque especial", ataque_especial)
-
-    with col5:
-        st.metric("defesa especial",defesa_especial)
-
-    with col6:
-        st.metric("Velocidade", velocidade)
-
-with locais:
-    rota_locais = dados_pokemon['location_area_encounters']
-    dados_locais = requests.get(rota_locais).json()
-    for local in dados_locais:
-        st.markdown(f"-{local['location_area']['name']}")
-
-with habilidades:
-    for hab in dados_pokemon['abilitlies']:
-        st.markdown(f"-{hab['ability']['name']}")
+        with st.container(border=True, height="stretch"):
+            st.metric("Provedores de Crédito", df['CC Provider'].nunique())
 
 
+with st.container():
+    col1, col2, col3 = st.columns(3)
 
+    with col1:
+        with st.container(border=True, height="stretch"):
+
+            prices_country = df.groupby('Country').agg({'Purchase Price' : ['count', 'sum', 'max', 'min', 'mean']}).reset_index()
+            prices_country.columns = ['Country', 'Quantidade de Vendas', 'Total em Dólares', "Preço Máximo", 'Preço Mínimo', 'Preço Médio']
+
+            opcao = st.radio('Ranking por:', ['Quantidade de Vendas', 'Total em Dólares', 'Preço Máximo', 'Preço Mínimo', 'Preço Médio',],horizontal=True)
+            prices_country = prices_country.sort_values(opcao, ascending=False).head()
+            fig  = px.bar(prices_country.sort_values(opcao, ascending=True), x=opcao, y='Country', orientation='h')
+
+            st.markdown('#### Top 5 Paises')
+            st.plotly_chart(fig)
+
+    with col2:
+        with st.container(border=True, height="stretch"):
+            df['Ano'] = df['CC Exp Date'].apply(lambda x: x.split('/')[1]).astype(int)
+
+            df_aux = df.groupby(['Ano','Country'])['Purchase Price'].sum().reset_index().sort_values('Ano', ascending=True)
+            fig = px.line(df_aux, x='Ano', y='Purchase Price', width=400, color='Country', markers=True)
+
+            st.markdown('### Vendas por Ano')
+            st.plotly_chart(fig)
+
+
+    with col3:
+        with st.container(border=True, height="stretch"):
+            cc_providers = df.groupby('CC Provider')['Purchase Price'].sum().reset_index().sort_values('Purchase Price', ascending=False)
+
+            st.markdown('#### Vendas por Provedor de Créditos')
+
+            count = 1 
+            for i,j in zip(cc_providers['CC Provider'], cc_providers['Purchase Price']):
+                st.markdown(f"{count} º - {i:20} - ${j:.2f}")
+                count +=1 
+
+coordenadas = df[~(df['Latitude'].isna())]
+st.map(coordenadas,latitude='Latitude', longitude='Longitude')
 
 
 
