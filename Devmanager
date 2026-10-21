@@ -1,0 +1,21 @@
+DevManager
+│
+├── venv
+│
+├── app.py
+├── requirements.txt
+│
+├── templates
+│   ├── base.html
+│   ├── index.html
+│   ├── projetos.html
+│   └── novo_projeto.html
+│
+└── static
+    ├── css
+    │   └── style.css
+    │
+    └── js
+        └── script.js
+
+        
